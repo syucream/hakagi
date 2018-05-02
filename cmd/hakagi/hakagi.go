@@ -3,9 +3,12 @@ package main
 import (
 	"database/sql"
 	"flag"
+	"fmt"
 	"log"
+	"strings"
 
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/jmoiron/sqlx"
 )
 
 const (
@@ -15,7 +18,7 @@ const (
 FROM
   COLUMNS
 WHERE
-  TABLE_SCHEMA IN (%s);
+  TABLE_SCHEMA IN (?);
 `
 )
 
@@ -25,14 +28,18 @@ type schema struct {
 	dataType string
 }
 
-func fetchSchema(db *sql.DB, targets string) (schema, error) {
-	targetsConditions := "'" + strings.Join(strings.Split(targets, ","), "','") + "'"
-
-	rows, err := db.Query(queryBase, targetsConditions)
-	defer rows.Close()
+func fetchSchemas(db *sql.DB, targets []string) ([]schema, error) {
+	query, args, err := sqlx.In(queryBase, targets)
 	if err != nil {
 		return nil, err
 	}
+
+	rows, err := db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	fmt.Println(rows)
 
 	var schemas []schema
 	for rows.Next() {
@@ -56,14 +63,15 @@ func main() {
 
 	flag.Parse()
 
-	dbUri := fmt.Sprinft("%s:%s@tcp(%s:%d)/%s", *dbUser, *dbPass, *dbhost, *dbPort, databaseName)
+	dbUri := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s", *dbUser, *dbPass, *dbHost, *dbPort, databaseName)
 	db, err := sql.Open("mysql", dbUri)
 	if err != nil {
 		log.Fatalf("Failed to connect database : %v", err)
 	}
 
-	schemas, err := fetchSchema(db, *targets)
+	schemas, err := fetchSchemas(db, strings.Split(*targets, ","))
 	if err != nil {
 		log.Fatalf("Failed to fetch schemas : %v", err)
 	}
+	fmt.Println(schemas)
 }
