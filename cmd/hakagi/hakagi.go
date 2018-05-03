@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/syucream/hakagi/src/constraint"
 	"github.com/syucream/hakagi/src/database"
 	"github.com/syucream/hakagi/src/formatter"
 	"github.com/syucream/hakagi/src/guess"
@@ -37,7 +38,9 @@ func main() {
 		log.Fatalf("Failed to fetch primary keys : %v", err)
 	}
 
-	constraints := guess.GuessByPrimaryKeyName(schemas, primaryKeys)
+	var constraints []constraint.Constraint
+	constraints = append(constraints, guess.GuessByPrimaryKeyName(schemas, primaryKeys)...)
+	constraints = append(constraints, guess.GuessBySimilarColumn(schemas)...)
 
 	alterQuery := formatter.FormatSql(constraints)
 	fmt.Println(alterQuery)

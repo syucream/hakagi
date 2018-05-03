@@ -9,6 +9,12 @@
 
 [[projects]]
   branch = "master"
+  name = "github.com/jinzhu/inflection"
+  packages = ["."]
+  revision = "04140366298a54a039076d798123ffa108fff46c"
+
+[[projects]]
+  branch = "master"
   name = "github.com/jmoiron/sqlx"
   packages = [
     ".",
@@ -19,6 +25,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "b6cee767b14b17f8b38baa0ca2592bd1133eaa118580b72002770bd8676dbc3f"
+  inputs-digest = "0e00453b841beaf77f19dcfed3aa0925552a0b8429ec0eab66dcaf1f4425d4bb"
   solver-name = "gps-cdcl"
   solver-version = 1
