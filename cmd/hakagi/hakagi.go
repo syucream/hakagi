@@ -1,57 +1,16 @@
 package main
 
 import (
-	"database/sql"
 	"flag"
 	"fmt"
 	"log"
 	"strings"
 
 	_ "github.com/go-sql-driver/mysql"
-	"github.com/jmoiron/sqlx"
+	"github.com/syucream/hakagi/src/database"
+	"github.com/syucream/hakagi/src/formatter"
+	"github.com/syucream/hakagi/src/guess"
 )
-
-const (
-	databaseName = "information_schema"
-	queryBase    = `SELECT 
-  TABLE_NAME, COLUMN_NAME, DATA_TYPE
-FROM
-  COLUMNS
-WHERE
-  TABLE_SCHEMA IN (?);
-`
-)
-
-type schema struct {
-	table    string
-	column   string
-	dataType string
-}
-
-func fetchSchemas(db *sql.DB, targets []string) ([]schema, error) {
-	query, args, err := sqlx.In(queryBase, targets)
-	if err != nil {
-		return nil, err
-	}
-
-	rows, err := db.Query(query, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	fmt.Println(rows)
-
-	var schemas []schema
-	for rows.Next() {
-		var tableName, columnName, dataType string
-		if err := rows.Scan(&tableName, &columnName, &dataType); err != nil {
-			return nil, err
-		}
-		schemas = append(schemas, schema{tableName, columnName, dataType})
-	}
-
-	return schemas, nil
-}
 
 func main() {
 	dbUser := flag.String("dbuser", "", "database user")
@@ -63,15 +22,23 @@ func main() {
 
 	flag.Parse()
 
-	dbUri := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s", *dbUser, *dbPass, *dbHost, *dbPort, databaseName)
-	db, err := sql.Open("mysql", dbUri)
+	db, err := database.ConnectDatabase(*dbUser, *dbPass, *dbHost, *dbPort)
 	if err != nil {
 		log.Fatalf("Failed to connect database : %v", err)
 	}
 
-	schemas, err := fetchSchemas(db, strings.Split(*targets, ","))
+	targetSlice := strings.Split(*targets, ",")
+	schemas, err := database.FetchSchemas(db, targetSlice)
 	if err != nil {
 		log.Fatalf("Failed to fetch schemas : %v", err)
 	}
-	fmt.Println(schemas)
+	primaryKeys, err := database.FetchPrimaryKeys(db, targetSlice)
+	if err != nil {
+		log.Fatalf("Failed to fetch primary keys : %v", err)
+	}
+
+	constraints := guess.GuessByPrimaryKeyName(schemas, primaryKeys)
+
+	alterQuery := formatter.FormatSql(constraints)
+	fmt.Println(alterQuery)
 }
