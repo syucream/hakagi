@@ -1,6 +1,6 @@
 # hakagi
 
-HAKAGI(葉鍵, Leaf and Key) is RDB analyzer that detects implicit foreign key constraints and others 
+HAKAGI(葉鍵, Leaf and Key) is RDB analyzer that detects implicit foreign key constraints and others to support ER diagram auto-generation
 
 ## Installation
 
