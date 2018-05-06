@@ -12,6 +12,11 @@ import (
 	"github.com/syucream/hakagi/src/guess"
 )
 
+var ruleToGuesser = map[string]guess.GuessOption{
+	"primarykey":     guess.GuessByPrimaryKey(),
+	"tableandcolumn": guess.GuessByTableAndColumn(),
+}
+
 func main() {
 	dbUser := flag.String("dbuser", "", "database user")
 	dbPass := flag.String("dbpass", "", "database password")
@@ -19,6 +24,7 @@ func main() {
 	dbPort := flag.Int("dbport", 3306, "database port")
 
 	targets := flag.String("targets", "", "analysing target databases(comma-separated)")
+	rules := flag.String("rules", "primarykey,tableandcolumn", "analysing rules(comma-separated)")
 
 	flag.Parse()
 
@@ -37,7 +43,13 @@ func main() {
 		log.Fatalf("Failed to fetch primary keys : %v", err)
 	}
 
-	constraints := guess.GuessConstraints(schemas, primaryKeys, guess.GuessByPrimaryKeyName(), guess.GuessBySimilarColumn())
+	var guessers []guess.GuessOption
+	for _, rule := range strings.Split(*rules, ",") {
+		if guesser, ok := ruleToGuesser[rule]; ok {
+			guessers = append(guessers, guesser)
+		}
+	}
+	constraints := guess.GuessConstraints(schemas, primaryKeys, guessers...)
 
 	alterQuery := formatter.FormatSql(constraints)
 	fmt.Println(alterQuery)
