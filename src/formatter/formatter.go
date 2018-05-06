@@ -8,15 +8,7 @@ import (
 )
 
 const (
-	baseSql = `ALTER TABLE
-	%s
-ADD CONSTRAINT
-  %s_ibfk_%s%s
-FOREIGN KEY
-  (%s)
-REFERENCES
-  %s(%s);
-`
+	baseSql = "ALTER TABLE %s ADD CONSTRAINT %s_ibfk_%s%s FOREIGN KEY (%s) REFERENCES %s(%s);"
 )
 
 func FormatSql(constraints []constraint.Constraint) string {
