@@ -81,3 +81,8 @@ $ mysql -u root hakagi_example < migration01.sql
 ```
 
 ![ER diagram after](./images/after_er.png)
+
+## TODO
+
+- Support more guess roles
+- Support more output formats(e.g. plantuml?)
