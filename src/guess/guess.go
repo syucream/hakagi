@@ -11,22 +11,38 @@ const (
 	targetColumnSuffix = "_id"
 )
 
+var primaryKeyTypes = map[string]bool{
+	"tinyint":   true,
+	"smallint":  true,
+	"meriumint": true,
+	"int":       true,
+	"bigint":    true,
+}
+
 type GuessOption func(database.Schema, database.PrimaryKey) bool
+
+func isPrimaryKeyType(dataType string) bool {
+	_, ok := primaryKeyTypes[dataType]
+	return ok
+}
 
 // Recongnize a column thats same name of other table's primary key is a foreign key
 // This base idea refers to SchemaSpy DbAnalyzer:
 //   https://github.com/schemaspy/schemaspy/blob/master/src/main/java/org/schemaspy/DbAnalyzer.java
 func GuessByPrimaryKey() GuessOption {
 	return func(s database.Schema, pk database.PrimaryKey) bool {
-		return s.Column == pk.Column && pk.Column != idColumn
+		return isPrimaryKeyType(s.DataType) && s.Column == pk.Column && pk.Column != idColumn
 	}
 }
 
 func GuessByTableAndColumn() GuessOption {
 	return func(s database.Schema, pk database.PrimaryKey) bool {
+		if !isPrimaryKeyType(s.DataType) {
+			return false
+		}
+
 		cLen := len(s.Column)
 		tLen := len(targetColumnSuffix)
-
 		if !(cLen >= tLen && s.Column[cLen-tLen:] == targetColumnSuffix) {
 			return false
 		}
