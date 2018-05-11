@@ -21,9 +21,10 @@ var primaryKeyTypes = map[string]bool{
 
 type GuessOption func(database.Schema, database.PrimaryKey) bool
 
-func isPrimaryKeyType(dataType string) bool {
-	_, ok := primaryKeyTypes[dataType]
-	return ok
+func isAcceptableAsPrimaryKey(columnType, primaryKeyType string) bool {
+	_, colIsOk := primaryKeyTypes[columnType]
+	_, pkIsOk := primaryKeyTypes[primaryKeyType]
+	return colIsOk && pkIsOk && columnType == primaryKeyType
 }
 
 // Recongnize a column thats same name of other table's primary key is a foreign key
@@ -31,13 +32,13 @@ func isPrimaryKeyType(dataType string) bool {
 //   https://github.com/schemaspy/schemaspy/blob/master/src/main/java/org/schemaspy/DbAnalyzer.java
 func GuessByPrimaryKey() GuessOption {
 	return func(s database.Schema, pk database.PrimaryKey) bool {
-		return isPrimaryKeyType(pk.DataType) && s.DataType == pk.DataType && s.Column == pk.Column && pk.Column != idColumn
+		return isAcceptableAsPrimaryKey(s.DataType, pk.DataType) && s.Column == pk.Column && pk.Column != idColumn
 	}
 }
 
 func GuessByTableAndColumn() GuessOption {
 	return func(s database.Schema, pk database.PrimaryKey) bool {
-		if !isPrimaryKeyType(pk.DataType) && s.DataType != pk.DataType {
+		if !isAcceptableAsPrimaryKey(s.DataType, pk.DataType) {
 			return false
 		}
 
