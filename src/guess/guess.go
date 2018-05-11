@@ -31,13 +31,13 @@ func isPrimaryKeyType(dataType string) bool {
 //   https://github.com/schemaspy/schemaspy/blob/master/src/main/java/org/schemaspy/DbAnalyzer.java
 func GuessByPrimaryKey() GuessOption {
 	return func(s database.Schema, pk database.PrimaryKey) bool {
-		return isPrimaryKeyType(s.DataType) && s.Column == pk.Column && pk.Column != idColumn
+		return isPrimaryKeyType(pk.DataType) && s.DataType == pk.DataType && s.Column == pk.Column && pk.Column != idColumn
 	}
 }
 
 func GuessByTableAndColumn() GuessOption {
 	return func(s database.Schema, pk database.PrimaryKey) bool {
-		if !isPrimaryKeyType(s.DataType) {
+		if !isPrimaryKeyType(pk.DataType) && s.DataType != pk.DataType {
 			return false
 		}
 

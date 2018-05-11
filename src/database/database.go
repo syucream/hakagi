@@ -16,13 +16,18 @@ FROM
 WHERE
   TABLE_SCHEMA IN (?);
 `
-	primaryConstraintQueryBase = `SELECT 
-	TABLE_NAME, COLUMN_NAME
+	primaryConstraintQueryBase = `SELECT
+  KEY_COLUMN_USAGE.TABLE_NAME, KEY_COLUMN_USAGE.COLUMN_NAME, COLUMNS.DATA_TYPE
 FROM
   KEY_COLUMN_USAGE
+INNER JOIN
+	COLUMNS
+ON
+  KEY_COLUMN_USAGE.TABLE_NAME = COLUMNS.TABLE_NAME AND
+	KEY_COLUMN_USAGE.COLUMN_NAME = COLUMNS.COLUMN_NAME
 WHERE
-  CONSTRAINT_NAME = 'PRIMARY' AND
-  CONSTRAINT_SCHEMA IN (?);
+  KEY_COLUMN_USAGE.CONSTRAINT_NAME = 'PRIMARY' AND
+  KEY_COLUMN_USAGE.CONSTRAINT_SCHEMA IN (?);
 `
 )
 
@@ -33,8 +38,9 @@ type Schema struct {
 }
 
 type PrimaryKey struct {
-	Table  string
-	Column string
+	Table    string
+	Column   string
+	DataType string
 }
 
 func ConnectDatabase(user string, pass string, host string, port int) (*sql.DB, error) {
@@ -81,11 +87,11 @@ func FetchPrimaryKeys(db *sql.DB, targets []string) ([]PrimaryKey, error) {
 
 	var primaryKeys []PrimaryKey
 	for rows.Next() {
-		var tableName, columnName string
-		if err := rows.Scan(&tableName, &columnName); err != nil {
+		var tableName, columnName, dataType string
+		if err := rows.Scan(&tableName, &columnName, &dataType); err != nil {
 			return nil, err
 		}
-		primaryKeys = append(primaryKeys, PrimaryKey{tableName, columnName})
+		primaryKeys = append(primaryKeys, PrimaryKey{tableName, columnName, dataType})
 	}
 
 	return primaryKeys, nil
