@@ -1,6 +1,8 @@
 package guess
 
 import (
+	"strings"
+
 	"github.com/jinzhu/inflection"
 	"github.com/syucream/hakagi/src/constraint"
 	"github.com/syucream/hakagi/src/database"
@@ -11,19 +13,11 @@ const (
 	targetColumnSuffix = "_id"
 )
 
-var primaryKeyTypes = map[string]bool{
-	"tinyint":   true,
-	"smallint":  true,
-	"meriumint": true,
-	"int":       true,
-	"bigint":    true,
-}
-
-type GuessOption func(database.Schema, string, database.PrimaryKey) bool
+type GuessOption func(database.Column, string, database.Column) bool
 
 func isAcceptableAsPrimaryKey(columnType, primaryKeyType string) bool {
-	_, colIsOk := primaryKeyTypes[columnType]
-	_, pkIsOk := primaryKeyTypes[primaryKeyType]
+	colIsOk := strings.Index(columnType, "int") != -1
+	pkIsOk := strings.Index(primaryKeyType, "int") != -1
 	return colIsOk && pkIsOk && columnType == primaryKeyType
 }
 
@@ -31,38 +25,43 @@ func isAcceptableAsPrimaryKey(columnType, primaryKeyType string) bool {
 // This base idea refers to SchemaSpy DbAnalyzer:
 //   https://github.com/schemaspy/schemaspy/blob/master/src/main/java/org/schemaspy/DbAnalyzer.java
 func GuessByPrimaryKey() GuessOption {
-	return func(s database.Schema, table string, pk database.PrimaryKey) bool {
-		return isAcceptableAsPrimaryKey(s.DataType, pk.DataType) && s.Column == pk.Column && pk.Column != idColumn
+	return func(i database.Column, table string, pk database.Column) bool {
+		return isAcceptableAsPrimaryKey(i.Type, pk.Type) && i.Name == pk.Name && pk.Name != idColumn
 	}
 }
 
 func GuessByTableAndColumn() GuessOption {
-	return func(s database.Schema, table string, pk database.PrimaryKey) bool {
-		if !isAcceptableAsPrimaryKey(s.DataType, pk.DataType) {
+	return func(i database.Column, table string, pk database.Column) bool {
+		if !isAcceptableAsPrimaryKey(i.Type, pk.Type) {
 			return false
 		}
 
-		cLen := len(s.Column)
+		cLen := len(i.Name)
 		tLen := len(targetColumnSuffix)
-		if !(cLen >= tLen && s.Column[cLen-tLen:] == targetColumnSuffix) {
+		if !(cLen >= tLen && i.Name[cLen-tLen:] == targetColumnSuffix) {
 			return false
 		}
 
-		return inflection.Plural(s.Column[:cLen-tLen]) == table && pk.Column == idColumn
+		return inflection.Plural(i.Name[:cLen-tLen]) == table && pk.Name == idColumn
 	}
 }
 
-func GuessConstraints(schemas []database.Schema, primaryKeys database.PrimaryKeys, guessOptions ...GuessOption) []constraint.Constraint {
+// GuessConstraints guesses foreign key constraints from primary keys and indexes.
+// NOTE composite primary keys are not supported.
+func GuessConstraints(indexes database.Indexes, primaryKeys database.PrimaryKeys, guessOptions ...GuessOption) []constraint.Constraint {
 	var constraints []constraint.Constraint
 
-	for _, s := range schemas {
-		for table, pk := range primaryKeys {
-			// NOTE composite primary keys are not supported
-			if s.Table != table && len(pk) == 1 {
-				singlePk := pk[0]
-				for _, guesser := range guessOptions {
-					if guesser(s, table, singlePk) {
-						constraints = append(constraints, constraint.Constraint{s.Table, s.Column, table, singlePk.Column})
+	for indexTable, indexMaps := range indexes {
+		for _, indexCols := range indexMaps {
+			for pkTable, pk := range primaryKeys {
+				if indexTable != pkTable && len(indexCols) == 1 && len(pk) == 1 {
+					singleIndex := indexCols[0]
+					singlePk := pk[0]
+
+					for _, guesser := range guessOptions {
+						if guesser(singleIndex, pkTable, singlePk) {
+							constraints = append(constraints, constraint.Constraint{indexTable, singleIndex.Name, pkTable, singlePk.Name})
+						}
 					}
 				}
 			}

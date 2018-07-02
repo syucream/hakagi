@@ -8,16 +8,22 @@ import (
 )
 
 const (
-	databaseName    = "information_schema"
-	schemaQueryBase = `SELECT 
-  TABLE_NAME, COLUMN_NAME, DATA_TYPE
+	databaseName     = "information_schema"
+	indexesQueryBase = `SELECT
+  STATISTICS.TABLE_NAME, STATISTICS.INDEX_NAME, STATISTICS.COLUMN_NAME, COLUMNS.COLUMN_TYPE
 FROM
-  COLUMNS
+  STATISTICS
+INNER JOIN
+	COLUMNS
+ON
+  STATISTICS.TABLE_NAME = COLUMNS.TABLE_NAME AND
+	STATISTICS.COLUMN_NAME = COLUMNS.COLUMN_NAME
 WHERE
-  TABLE_SCHEMA IN (?);
+  STATISTICS.INDEX_NAME != 'PRIMARY' AND
+  STATISTICS.TABLE_SCHEMA IN (?);
 `
 	primaryConstraintQueryBase = `SELECT
-  KEY_COLUMN_USAGE.TABLE_NAME, KEY_COLUMN_USAGE.COLUMN_NAME, COLUMNS.DATA_TYPE
+  KEY_COLUMN_USAGE.TABLE_NAME, KEY_COLUMN_USAGE.COLUMN_NAME, COLUMNS.COLUMN_TYPE
 FROM
   KEY_COLUMN_USAGE
 INNER JOIN
@@ -31,18 +37,16 @@ WHERE
 `
 )
 
-type Schema struct {
-	Table    string
-	Column   string
-	DataType string
+type Column struct {
+	Name string
+	Type string
 }
 
-type PrimaryKey struct {
-	Column   string
-	DataType string
-}
+// table name -> index name -> columns
+type Indexes map[string]map[string][]Column
 
-type PrimaryKeys map[string][]PrimaryKey
+// table name -> columns
+type PrimaryKeys map[string][]Column
 
 func ConnectDatabase(user string, pass string, host string, port int) (*sql.DB, error) {
 	dbUri := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s", user, pass, host, port, databaseName)
@@ -50,8 +54,8 @@ func ConnectDatabase(user string, pass string, host string, port int) (*sql.DB, 
 	return sql.Open("mysql", dbUri)
 }
 
-func FetchSchemas(db *sql.DB, targets []string) ([]Schema, error) {
-	query, args, err := sqlx.In(schemaQueryBase, targets)
+func FetchSchemas(db *sql.DB, targets []string) (Indexes, error) {
+	query, args, err := sqlx.In(indexesQueryBase, targets)
 	if err != nil {
 		return nil, err
 	}
@@ -62,16 +66,26 @@ func FetchSchemas(db *sql.DB, targets []string) ([]Schema, error) {
 	}
 	defer rows.Close()
 
-	var schemas []Schema
+	indexes := make(Indexes)
 	for rows.Next() {
-		var tableName, columnName, dataType string
-		if err := rows.Scan(&tableName, &columnName, &dataType); err != nil {
+		var tableName, indexName, columnName, columnType string
+		if err := rows.Scan(&tableName, &indexName, &columnName, &columnType); err != nil {
 			return nil, err
 		}
-		schemas = append(schemas, Schema{tableName, columnName, dataType})
+
+		if ct, tableOk := indexes[tableName]; tableOk {
+			if ci, indexOk := ct[indexName]; indexOk {
+				ct[indexName] = append(ci, Column{columnName, columnType})
+			} else {
+				ct[indexName] = []Column{Column{columnName, columnType}}
+			}
+		} else {
+			indexes[tableName] = make(map[string][]Column)
+			indexes[tableName][indexName] = []Column{Column{columnName, columnType}}
+		}
 	}
 
-	return schemas, nil
+	return indexes, nil
 }
 
 func FetchPrimaryKeys(db *sql.DB, targets []string) (PrimaryKeys, error) {
@@ -88,15 +102,15 @@ func FetchPrimaryKeys(db *sql.DB, targets []string) (PrimaryKeys, error) {
 
 	primaryKeys := make(PrimaryKeys)
 	for rows.Next() {
-		var tableName, columnName, dataType string
-		if err := rows.Scan(&tableName, &columnName, &dataType); err != nil {
+		var tableName, columnName, columnType string
+		if err := rows.Scan(&tableName, &columnName, &columnType); err != nil {
 			return nil, err
 		}
 
 		if current, ok := primaryKeys[tableName]; ok {
-			primaryKeys[tableName] = append(current, PrimaryKey{columnName, dataType})
+			primaryKeys[tableName] = append(current, Column{columnName, columnType})
 		} else {
-			primaryKeys[tableName] = []PrimaryKey{PrimaryKey{columnName, dataType}}
+			primaryKeys[tableName] = []Column{Column{columnName, columnType}}
 		}
 	}
 
