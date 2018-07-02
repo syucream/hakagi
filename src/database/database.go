@@ -38,10 +38,11 @@ type Schema struct {
 }
 
 type PrimaryKey struct {
-	Table    string
 	Column   string
 	DataType string
 }
+
+type PrimaryKeys map[string][]PrimaryKey
 
 func ConnectDatabase(user string, pass string, host string, port int) (*sql.DB, error) {
 	dbUri := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s", user, pass, host, port, databaseName)
@@ -73,7 +74,7 @@ func FetchSchemas(db *sql.DB, targets []string) ([]Schema, error) {
 	return schemas, nil
 }
 
-func FetchPrimaryKeys(db *sql.DB, targets []string) ([]PrimaryKey, error) {
+func FetchPrimaryKeys(db *sql.DB, targets []string) (PrimaryKeys, error) {
 	query, args, err := sqlx.In(primaryConstraintQueryBase, targets)
 	if err != nil {
 		return nil, err
@@ -85,13 +86,18 @@ func FetchPrimaryKeys(db *sql.DB, targets []string) ([]PrimaryKey, error) {
 	}
 	defer rows.Close()
 
-	var primaryKeys []PrimaryKey
+	primaryKeys := make(PrimaryKeys)
 	for rows.Next() {
 		var tableName, columnName, dataType string
 		if err := rows.Scan(&tableName, &columnName, &dataType); err != nil {
 			return nil, err
 		}
-		primaryKeys = append(primaryKeys, PrimaryKey{tableName, columnName, dataType})
+
+		if current, ok := primaryKeys[tableName]; ok {
+			primaryKeys[tableName] = append(current, PrimaryKey{columnName, dataType})
+		} else {
+			primaryKeys[tableName] = []PrimaryKey{PrimaryKey{columnName, dataType}}
+		}
 	}
 
 	return primaryKeys, nil

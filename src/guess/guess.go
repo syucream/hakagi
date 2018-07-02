@@ -19,7 +19,7 @@ var primaryKeyTypes = map[string]bool{
 	"bigint":    true,
 }
 
-type GuessOption func(database.Schema, database.PrimaryKey) bool
+type GuessOption func(database.Schema, string, database.PrimaryKey) bool
 
 func isAcceptableAsPrimaryKey(columnType, primaryKeyType string) bool {
 	_, colIsOk := primaryKeyTypes[columnType]
@@ -31,13 +31,13 @@ func isAcceptableAsPrimaryKey(columnType, primaryKeyType string) bool {
 // This base idea refers to SchemaSpy DbAnalyzer:
 //   https://github.com/schemaspy/schemaspy/blob/master/src/main/java/org/schemaspy/DbAnalyzer.java
 func GuessByPrimaryKey() GuessOption {
-	return func(s database.Schema, pk database.PrimaryKey) bool {
+	return func(s database.Schema, table string, pk database.PrimaryKey) bool {
 		return isAcceptableAsPrimaryKey(s.DataType, pk.DataType) && s.Column == pk.Column && pk.Column != idColumn
 	}
 }
 
 func GuessByTableAndColumn() GuessOption {
-	return func(s database.Schema, pk database.PrimaryKey) bool {
+	return func(s database.Schema, table string, pk database.PrimaryKey) bool {
 		if !isAcceptableAsPrimaryKey(s.DataType, pk.DataType) {
 			return false
 		}
@@ -48,19 +48,21 @@ func GuessByTableAndColumn() GuessOption {
 			return false
 		}
 
-		return inflection.Plural(s.Column[:cLen-tLen]) == pk.Table && pk.Column == idColumn
+		return inflection.Plural(s.Column[:cLen-tLen]) == table && pk.Column == idColumn
 	}
 }
 
-func GuessConstraints(schemas []database.Schema, primaryKeys []database.PrimaryKey, guessOptions ...GuessOption) []constraint.Constraint {
+func GuessConstraints(schemas []database.Schema, primaryKeys database.PrimaryKeys, guessOptions ...GuessOption) []constraint.Constraint {
 	var constraints []constraint.Constraint
 
 	for _, s := range schemas {
-		for _, pk := range primaryKeys {
-			if s.Table != pk.Table {
+		for table, pk := range primaryKeys {
+			// NOTE composite primary keys are not supported
+			if s.Table != table && len(pk) == 1 {
+				singlePk := pk[0]
 				for _, guesser := range guessOptions {
-					if guesser(s, pk) {
-						constraints = append(constraints, constraint.Constraint{s.Table, s.Column, pk.Table, pk.Column})
+					if guesser(s, table, singlePk) {
+						constraints = append(constraints, constraint.Constraint{s.Table, s.Column, table, singlePk.Column})
 					}
 				}
 			}
