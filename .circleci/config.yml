@@ -1,0 +1,14 @@
+version: 2
+
+jobs:
+  build:
+    docker:
+      - image: circleci/golang:1.11.1-stretch
+    steps:
+      - run: make dep cmd
+
+workflows:
+  version: 2
+  build-workflow:
+    jobs:
+      - build
