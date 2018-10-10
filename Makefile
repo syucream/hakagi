@@ -1,5 +1,6 @@
 all: cmd
 
+.PHONY: dep
 dep:
 	rm -rf vendor/
 	dep ensure -v
