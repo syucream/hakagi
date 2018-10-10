@@ -5,6 +5,7 @@ jobs:
     docker:
       - image: circleci/golang:1.11.1-stretch
     steps:
+      - checkout
       - run: make dep cmd
 
 workflows:
