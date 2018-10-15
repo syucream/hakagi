@@ -18,3 +18,9 @@ vendor
 
 # binary
 hakagi
+
+# goreleaser
+dist
+
+# GoLand
+.idea
