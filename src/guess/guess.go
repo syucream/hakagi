@@ -15,10 +15,10 @@ const (
 
 type GuessOption func(database.Column, string, database.Column) bool
 
-func isAcceptableAsPrimaryKey(columnType, primaryKeyType string) bool {
-	colIsOk := strings.Index(columnType, "int") != -1
-	pkIsOk := strings.Index(primaryKeyType, "int") != -1
-	return colIsOk && pkIsOk && columnType == primaryKeyType
+func isAcceptableAsIndex(left, right string) bool {
+	return left == right &&
+		!(strings.Index(left, "text") != -1 || strings.Index(left, "blob") != -1) &&
+		!(strings.Index(right, "text") != -1 || strings.Index(right, "blob") != -1)
 }
 
 // Recongnize a column thats same name of other table's primary key is a foreign key
@@ -26,13 +26,14 @@ func isAcceptableAsPrimaryKey(columnType, primaryKeyType string) bool {
 //   https://github.com/schemaspy/schemaspy/blob/master/src/main/java/org/schemaspy/DbAnalyzer.java
 func GuessByPrimaryKey() GuessOption {
 	return func(i database.Column, table string, pk database.Column) bool {
-		return isAcceptableAsPrimaryKey(i.Type, pk.Type) && i.Name == pk.Name && pk.Name != idColumn
+		return isAcceptableAsIndex(i.Type, pk.Type) && i.Name == pk.Name && pk.Name != idColumn
 	}
 }
 
+// Recongnize a column thats same name without '_id' suffix of other table  name is a foreign key
 func GuessByTableAndColumn() GuessOption {
 	return func(i database.Column, table string, pk database.Column) bool {
-		if !isAcceptableAsPrimaryKey(i.Type, pk.Type) {
+		if !isAcceptableAsIndex(i.Type, pk.Type) {
 			return false
 		}
 
