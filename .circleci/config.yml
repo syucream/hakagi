@@ -8,9 +8,17 @@ jobs:
     steps:
       - checkout
       - run: make dep cmd
+  test:
+    docker:
+      - image: circleci/golang:1.11.1-stretch
+    working_directory: /go/src/github.com/syucream/hakagi
+    steps:
+      - checkout
+      - run: make dep test
 
 workflows:
   version: 2
   build-workflow:
     jobs:
       - build
+      - test
